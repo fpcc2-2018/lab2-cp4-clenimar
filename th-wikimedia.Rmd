@@ -1,0 +1,74 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(here)
+library(lubridate)
+library(resample)
+library(tidyverse)
+```
+
+### Lendo os dados
+
+```{r}
+search_data <- read_csv(here::here("data/search_data.csv"))
+```
+
+### 1. What is our daily overall clickthrough rate? How does it vary between the groups?
+
+De acordo com o exercício, clickthrough rate é a proporção das sessões onde o usuário clicou em, ao menos, um link.
+
+Primeiro, vamos obter a taxa média de click por cada sessão (filtrando as buscas sem resultados -- não faz sentidos considerá-las):
+
+```{r}
+click_avg = search_data %>%
+  filter(results != 0) %>%
+  filter(num_clicks > 0) %>%
+  group_by(session_id, group) %>%
+  summarise(
+    clicked = sum(num_clicks > 0),
+    total = sum(results),
+    rate = clicked/total
+    )
+click_avg
+```
+
+Agora, usamos testes de hipótese para afirmar se há ou não diferença entre as taxas dos grupos A e B, com α = 5%. Seja a hipótese nula, h0:
+h0: não há diferença entre os grupos A e B.
+h1: há diferença entre os grupos A e B.
+
+```{r}
+ht = permutationTest2(click_avg, sum(rate), treatment = group)
+ht
+```
+
+Como o p-valor encontrado, p = 0.0002, é menor que o α = 0.05, rejeitamos a hipótese nula. Logo, há indícios que há, de fato, diferença entre os grupos A e B.
+
+### 2. What is our daily overall zero results rate? How does it vary between the groups?
+
+```{r}
+zero_result = search_data %>%
+  group_by(session_id, group, results) %>%
+  summarise(
+    zero = sum(results == 0),
+    ztotal = n(),
+    zrate = zero/ztotal
+    )
+zero_result
+```
+
+```{r}
+ht2 = permutationTest2(zero_result, sum(zrate), treatment = group)
+ht2
+```
+
+```{r}
+zr_avg = zero_result %>%
+  group_by(group) %>%
+  summarise(
+    rate = sum(results == 0) / n()
+  )
+zr_avg
+```
